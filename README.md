@@ -8,6 +8,7 @@ The architecture of DeepEST is visualized in the following figure:
 
 
 ## Contacts
+For queries on the implementation and data, please contact:
 giulia.muzio@bsse.ethz.ch
 
 
