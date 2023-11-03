@@ -5,11 +5,20 @@ The architecture of DeepEST is visualized in the following figure:
 
 ![method](https://github.com/BorgwardtLab/DeepEST/assets/56036317/bb421134-1ad6-4bc9-8220-440db949b624)
 
+## Repository organization
 
+
+## Data
+### Expression and location data
+
+### Protein structures
+
+### GO terms annotations
 
 ## Contacts
 For queries on the implementation and data, please contact:
-giulia.muzio@bsse.ethz.ch
+- giulia.muzio@bsse.ethz.ch
+- leyden.fernandez@umu.se
 
 
 ## Funding
