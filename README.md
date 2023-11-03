@@ -33,8 +33,11 @@ To retrieve a particular GO term's children or ancestors we use the [GO ontology
 
 ## References
 [1] Gligorijevi ́c, V., et al.: Structure-based protein function prediction using graph convolutional networks. Nat. Commun. 12, 3168 (2021)
+
 [2] Avican, K., et al.: RNA atlas of human bacterial pathogens uncovers stress dynamics linked to infection. Nat. Commun. 12, 3282 (2021)
+
 [3] Mihaly Varadi et al. AlphaFold Protein Structure Database: massively expanding the structural coverage of protein-sequence space with high-accuracy models. Nucleic Acids Research, 50(D1):D439–D444, 2021.
+
 [4] The UniProt Consortium. UniProt: the Universal Protein Knowledgebase in 2023. Nucleic Acids Research, 51(D1):D523–D531, 2022.
 
 ## Contacts
