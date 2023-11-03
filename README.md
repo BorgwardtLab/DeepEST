@@ -9,11 +9,17 @@ The architecture of DeepEST is visualized in the following figure:
 
 
 ## Data
+We study the following 25 bacterial species:
+![Species](https://github.com/BorgwardtLab/DeepEST/assets/56036317/7a24e712-8b1d-41c1-8990-a1272a8094a2)
+
 ### Expression and location data
 
 ### Protein structures
 
 ### GO terms annotations
+GO annotations are retrieved from the [UniProt database](https://www.uniprot.org/) (accessed on July 12, 2023) using the RefSeq protein identifier of every known protein and the taxonomic reference code of a given pathogen's strain at hand. 
+To retrieve a particular GO term's children or ancestors we use the GO ontology released on October 7, 2022.
+
 
 ## Contacts
 For queries on the implementation and data, please contact:
