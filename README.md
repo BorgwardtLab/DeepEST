@@ -7,4 +7,9 @@ The architecture of DeepEST is visualized in the following figure:
 
 
 
-### Contacts
+## Contacts
+giulia.muzio@bsse.ethz.ch
+
+
+## Funding
+This project has received funding from the European Union’s Horizon 2020 research and innovation programme under the Marie Sklodowska-Curie grant agreement (No 813533). Swedish Research Council (No. 2021-02466), Kempes-tiftelserna (JCK22-0017), Insamlingsstiftelsen, Medical Faculty at Ume ̊a University to K Avican and Icelab Multidisciplinary Postdoctoral Fellowship to L Fernandez.
