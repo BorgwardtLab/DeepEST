@@ -5,6 +5,8 @@ The architecture of DeepEST, visualized in the following figure, is comprised of
 1) the fine-tuned structure module [1], and
 2) the expression-location module.
 
+Subsequently, the two modalities are integrated through learnable linear combination.
+
 ![method](https://github.com/BorgwardtLab/DeepEST/assets/56036317/bb421134-1ad6-4bc9-8220-440db949b624)
 
 ## Repository organization
