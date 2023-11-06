@@ -28,10 +28,10 @@ In the following, we describe how to collect the data (gene expression and locat
   As expression-location data, we use previously reported [PATHOgenex dataset](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE152295) [2], which contains both the genomic location information and the gene expression levels of 105,088 genes in 32 clinically relevant-human bacterial pathogens under 11 in vivo mimicking stress conditions and unexposed control. Specifically, as input features for our model, we consider the log-fold change values derived from the differential expression analysis of these 11 stress conditions in comparison to the control. 
 
 - ### Protein structures
-We use protein structures downloaded from the [AlphaFold database](https://alphafold.ebi.ac.uk/) [3].
+  We use protein structures downloaded from the [AlphaFold database](https://alphafold.ebi.ac.uk/) [3].
 
 - ### GO terms annotations
-GO annotations are retrieved from the [UniProt database](https://www.uniprot.org/) [4] (accessed on July 12, 2023) using the RefSeq protein identifier of every known protein and the taxonomic reference code of a given pathogen's strain. 
+  GO annotations are retrieved from the [UniProt database](https://www.uniprot.org/) [4] (accessed on July 12, 2023) using the RefSeq protein identifier of every known protein and the taxonomic reference code of a given pathogen's strain. 
 To retrieve a particular GO term's children or ancestors we use the [GO ontology](https://geneontology.org/docs/download-ontology/) released on October 7, 2022.
 
 
