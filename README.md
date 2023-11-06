@@ -24,7 +24,7 @@ We study a selection of 25 bacterial species, namely:
 
 In the following, we describe how to collect the data (gene expression and location data, protein structures, and GO terms annotations) we use to perform the study described in the manuscript. 
 
-### Expression and location data
+- ### Expression and location data
 As expression-location data, we use previously reported [PATHOgenex dataset](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE152295) [2], which contains both the genomic location information and the gene expression levels of 105,088 genes in 32 clinically relevant-human bacterial pathogens under 11 in vivo mimicking stress conditions and unexposed control. Specifically, as input features for our model, we consider the log-fold change values derived from the differential expression analysis of these 11 stress conditions in comparison to the control. 
 
 ### Protein structures
