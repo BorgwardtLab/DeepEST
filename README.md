@@ -28,12 +28,12 @@ python3 train_DeepEST.py \
 ```
 
 #### Dependencies
-To successfully run the command above, the following libraries should be istalled:
+The code only supports python3 and requires the following packages and submodules:
 
 - torch (tested on 2.0.0)
 - pytorch_lightning (tested on 1.9.4)
-- flash
-- sklearn
+- flash (tested on 0.8.1.post0)
+- sklearn (tested on 1.0.2)
 - numpy (tested on 1.21.5)
 - pandas (tested on  1.4.4)
 
