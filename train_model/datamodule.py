@@ -11,7 +11,6 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.compose       import ColumnTransformer
 
 from utils import load_pickle
-from IPython import embed
 
 class CombinedDataModule(pl.LightningDataModule):
     def __init__(self, config, splits_dir, split, expr_loc, structures, matrix_label, conv_dict):
