@@ -1,3 +1,6 @@
+# Adapted from https://github.com/bio-ontology-research-group/deepgoplus
+# paper:  https://doi.org/10.1093/bioinformatics/btz595
+
 from collections import deque, Counter, ChainMap
 import warnings
 import pandas as pd
