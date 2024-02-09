@@ -1,0 +1,61 @@
+data_params:
+  amino_acids:
+    A: 1
+    C: 5
+    D: 4
+    E: 7
+    F: 14
+    G: 8
+    H: 9
+    I: 10
+    K: 12
+    L: 11
+    M: 13
+    N: 3
+    P: 15
+    Q: 6
+    R: 2
+    S: 16
+    T: 17
+    V: 20
+    W: 18
+    X: 0
+    Y: 19
+  batch_size: 128
+  cmap_thresh: 10.0
+  invalid_acids:
+  - U
+  - O
+  - B
+  - Z
+  - J
+  - '*'
+  max_len: 2000
+  num_workers: 0
+model_params:
+  batch_size: 128
+  expression:
+    activation: ReLU
+    hidden_sizes:
+    - 34
+    - 68
+    - 136
+    - 272
+    - 198
+    input_dim: 17
+    p: 0.0
+  go_fn: data/go.obo
+  lr: 0.0001
+  structure:
+    activation: ReLU
+    deepfri_names: data/deepfri_terms_names.pkl
+    deepfri_terms: data/deepfri_terms.pkl
+    go_fn: data/go.obo
+    model_file: data/deepfri_model.hdf5
+    n_channels: 26
+    output_dim: 3442
+    p: 0.3
+  weight_decay: 0.01
+training_params:
+  max_epochs: 300
+  warm_up: 10
