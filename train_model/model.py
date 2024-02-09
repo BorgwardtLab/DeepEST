@@ -11,7 +11,7 @@ import numpy as np
 from utils import performance_assessment
 from utils_deepgoplus import update_scores
 from flash.core.optimizers import LinearWarmupCosineAnnealingLR
-from IPython import embed
+
 
 #######################################
 ########## EXPRESSION-LOCATION ########
