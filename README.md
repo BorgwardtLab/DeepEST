@@ -57,6 +57,914 @@ In the following, we describe how to collect the data (gene expression and locat
   GO annotations are retrieved from the [UniProt database](https://www.uniprot.org/) [4] (accessed on July 12, 2023) using the RefSeq protein identifier of every known protein and the taxonomic reference code of a given pathogen's strain. 
 To retrieve a particular GO term's children or ancestors we use the [GO ontology](https://geneontology.org/docs/download-ontology/) released on October 7, 2022.
 
+# DeepEST End-to-End Tutorial
+**PDB → Structure Embeddings → Genomic Features → GO-Term Prediction**
+
+This comprehensive tutorial describes how to run **DeepEST** end-to-end on **user-defined data**, starting from **protein structures (PDB files)** and producing **GO-term predictions**. It also documents how to leverage **DeepFRI** and **foldseek-based structure similarity** for robust model training and evaluation.
+
+## Table of Contents
+- [Overview](#overview)
+- [Key Components](#key-components)
+- [Required Inputs](#required-inputs)
+- [Recommended Resources](#recommended-resources)
+- [Installation & Setup](#installation--setup)
+- [Complete Workflow](#complete-workflow)
+- [Troubleshooting](#troubleshooting)
+- [References Foldseek](#references)
+
+---
+
+## Overview
+
+DeepEST combines three information sources to predict Gene Ontology (GO) terms from protein sequences:
+
+1. **Structure embeddings**: Graph Convolutional Networks (GCN) from DeepFRI applied to PDB files
+2. **Genomic/Expression features**: Position encodings derived from genomic and transcriptomic data
+3. **Supervised learning**: Neural network mapping combined features to GO term annotations
+
+The pipeline supports multiple evaluation strategies:
+- Standard random splits
+- **Foldseek-based structure-aware splits** (recommended for realistic evaluation)
+
+> **Note:** Big data files such as structures, splits, bed files, etc; used to train DeepEST, are available on Zenodo.
+
+---
+
+## Key Components
+
+### 1. Structure Embeddings (DeepFRI-GCN)
+- Extracted from PDB files using pre-trained DeepFRI's Graph Convolutional Network layers
+- Produces vectorial feature representations of proteins
+- Intermediate representations (not final DeepFRI predictions)
+
+### 2. Genomic/Expression-Location Features
+- **Polar position encoding**: Encodes gene/protein position relative to transcription start
+- **Expression data**: Log fold changes under various stress conditions
+- **Critical functions**:
+  - `get_info()`: Extracts genomic information from BED files
+  - `polar()`: Computes polar position encoding (essential for DeepEST)
+
+### 3. Transfer Learning Strategy
+- Uses original DeepFRI weights as initialization
+- Fine-tunes final layers on your labeled dataset
+- Decoupled strategy (extract → predict) for computational efficiency
+
+---
+
+## Required Inputs
+(Per Species/Strain)
+For each species/strain (example: `Achromobacter_xylosoxidans_SOLR10`), prepare:
+
+| Input | Description | File Format | Required |
+|-------|-------------|-------------|----------|
+| **PDB structures** | Protein 3D structures | `.pdb` files | ✓ |
+| **GO label matrix** | Protein × GO term annotations | `.csv` | ✓ |
+| **Splits directory** | Train/validation/test folds | `train/`, `val/`, `test/` folders | ✓ |
+| **Conversion dictionary** | Gene/protein ID mapping | `genes.txt` | ✓ |
+| **Genomic features** | Expression/location information | `.csv` | ✓ |
+| **Protein ID mapping** | Links genes to protein structures | Column in features file | ✓ |
+
+---
+
+## Recommended Resources
+
+These archives contain pre-generated configurations and data:
+
+### Available Downloads
+
+```
+config_species.zip (see example S. aureus)
+├── foldseek/                          # Structure-similarity-aware splits
+│   ├── foldseek_fold0/
+│   │   ├── config.yaml
+│   │   ├── train_split.txt
+│   │   └── ...
+│   └── foldseek_fold1/
+├── fold0/, fold1/, ...                # Standard random splits
+│   ├── config.yaml
+│   └── ...
+└── default.yaml                       # Default configuration
+
+scripts.zip
+├── 6_position_encoding.py            # ⭐ CORE: Generate genomic features
+├── 1_genes_with_expression.py        # Filter genes by expression availability
+├── 2_label_matrix.py                 # Build label matrix with GO term annotations
+├── 3_label_matrix_all_species.py     # Combine multi-species label matrices
+├── 4_reference_split_generation.py   # Create train/val/test splits
+├── 5_split_generation_all_species.py # Multi-species split generation
+├── 7_create_X_all_species.py         # Create combined feature matrix
+├── 8_create_expression_wo_IDs.py     # Clean expression data
+├── 9_print_dimensions.py             # Verify dataset dimensions
+├── 10_update_yaml.py                 # Generate config files per fold/split
+└── 10_update_yaml_combined.py        # Config generation for combined models
+
+genomic_features.zip
+├── 6_position_encoding.py
+├── genomic_data/
+│   ├── chr1.bed
+│   └── ...
+└── metadata.json                     # Data mapping reference
+
+scripts_str_and_clus.zip
+├── 1_prepare_pdb_folder.py           # Consolidate PDB files
+├── 2_create_foldseekDB.sh            # Build Foldseek database
+├── 3_run_foldseek.sh                 # Run structure-based clustering
+├── 4_check_clustering.py             # Generate structure-aware splits
+├── compare_with_deepFRI_training_set.sh
+├── options.txt                       # Foldseek parameter reference
+└── info.txt                          # Environment setup
+```
+
+---
+
+## Installation & Setup
+
+### Prerequisites
+```bash
+# Python 3.7+
+pip install pandas numpy scikit-learn pytorch-lightning pyyaml
+
+# DeepFRI requirements (see deepfri_extract_features.py dependencies)
+
+# Foldseek (for structure-based clustering, optional)
+# Download from: https://github.com/steineggerlab/foldseek
+export PATH=$(pwd)/foldseek/bin/:$PATH
+```
+
+### Directory Structure
+```
+project_root/
+├── gene_function/
+│   └── 1st_step/
+│       ├── deepfri_extract_features.py    # ⭐ Extract structure embeddings
+│       ├── merge_extracted_structures.py  # Merge multi-species embeddings
+│       └── deepfri_masked.py              # ⭐ Run DeepFRI with transfer learning
+├── scripts/
+│   ├── 6_position_encoding.py            # Generate genomic features
+│   └── [other preprocessing scripts]
+├── input/
+│   ├── structures/Achromobacter_xylosoxidans_SOLR10/
+│   │   ├── protein1.pdb
+│   │   └── ...
+│   ├── labels/
+│   │   └── label_matrix_Achromobacter_xylosoxidans_SOLR10_thr10_new.csv
+│   ├── splits/Achromobacter_xylosoxidans_SOLR10/
+│   │   ├── genes.txt
+│   │   ├── train/
+│   │   ├── val/
+│   │   └── test/
+│   └── genome/
+│       └── chromosomes.bed
+├── output/
+│   ├── [embeddings and predictions]
+└── features/
+    └── expr_loc_Achromobacter_xylosoxidans_SOLR10.csv
+```
+
+---
+
+## Complete Workflow
+
+### Step 1 — Extract Structure Embeddings (DeepFRI-GCN)
+
+This step applies DeepFRI's pre-trained GCN layers to your PDB files.
+
+#### Run Extraction
+
+```bash
+cd gene_function/1st_step/
+
+# Extract embeddings for a single species
+python3 deepfri_extract_features.py \
+  --data_dir ../input/structures/Achromobacter_xylosoxidans_SOLR10/ \
+  --out_dir ../output/
+```
+
+**Output:**
+```
+../output/
+├── Achromobacter_xylosoxidans_SOLR10.pkl     # Species-specific embeddings
+├── Borrelia_burgdorferi_B31.pkl
+└── ...
+```
+
+**What it does:**
+- Reads all `.pdb` files from the input directory
+- Applies DeepFRI's trained GCN layers
+- Produces vectorial representations for each protein (intermediate features, NOT final predictions)
+- Saves as pickle file for efficient loading
+
+> **Important:** These extracted features are intermediate DeepFRI representations used by both DeepEST and downstream DeepFRI predictions.
+
+---
+
+### Step 2 — (Optional) Merge Multiple Species Embeddings
+
+Only required if extracting for multiple species and you want a unified file.
+
+```bash
+python3 merge_extracted_structures.py \
+  --input_dir ../output/ \
+  --output_file ../data/all_proteins.pkl
+```
+
+**Output:** `../data/all_proteins.pkl` (combined embeddings for all species)
+
+**When to use:**
+- Training on multi-species data
+- Simplifying file management
+
+---
+
+### Step 3 — Generate Genomic Features
+
+Genomic features encode gene position, expression levels, and genomic context.
+
+#### Core Script: `6_position_encoding.py`
+
+**Key Functions:**
+
+```python
+def get_info(bed_path, species_genome):
+    """
+    Extract genomic information from BED files
+    
+    Inputs:
+        bed_path: Path to BED file with gene annotations
+        species_genome: Genome size information
+    
+    Returns:
+        Dictionary with:
+        - Strand information
+        - Gene start/end positions
+        - Chromosome assignments
+    """
+    pass
+
+def polar(protein_id, gene_info, genome_size):
+    """
+    Compute polar position encoding
+    
+    Encodes gene/protein position relative to transcription start
+    using circular coordinates (cos/sin of angle).
+    
+    Critical feature for DeepEST performance.
+    
+    Inputs:
+        protein_id: Protein identifier
+        gene_info: Genomic information for gene
+        genome_size: Reference genome size
+    
+    Returns:
+        Position encoding features:
+        - cos-start, sin-start: Transcription start position
+        - cos-end, sin-end: Gene end position
+        - strand: DNA strand (+1 or -1)
+        - genome: Chromosome (0) vs Plasmid (1)
+    """
+    pass
+```
+
+#### Using Pre-Generated Features
+
+If using `genomic_features.zip`:
+
+```bash
+unzip genomic_features.zip
+
+# Now you have:
+# - 6_position_encoding.py
+# - genomic_data/chr*.bed
+# - metadata.json (ID mapping)
+```
+
+#### Run Feature Generation
+
+```bash
+python3 6_position_encoding.py \
+  --inraw ../data/raw_expression_files/ \
+  --inexp ../data/processed_files/features/
+```
+
+**Output:**
+```
+../data/processed_files/features/
+├── Achromobacter_xylosoxidans_SOLR10_genomic_info.csv
+├── Borrelia_burgdorferi_B31_genomic_info.csv
+└── ...
+```
+
+**Important:** Ensure all identifiers (gene IDs, protein IDs) match across:
+- Feature matrix
+- Label matrix
+- Conversion dictionary (`genes.txt`)
+
+---
+
+### Step 4 — (Optional) Run DeepFRI Baseline Predictions
+
+Map extracted embeddings through DeepFRI's final layers WITHOUT transfer learning.
+
+```bash
+python3 deepfri_masked.py \
+  --split 0 \
+  --outdir ../output/predictions/ \
+  --protein_path ../output/Achromobacter_xylosoxidans_SOLR10.pkl \
+  --matrix_label_path ../input/labels/label_matrix_Achromobacter_xylosoxidans_SOLR10_thr10_new.csv \
+  --split_dir ../input/splits/Achromobacter_xylosoxidans_SOLR10/ \
+  --species Achromobacter_xylosoxidans_SOLR10 \
+  --conversion_dict ../input/splits/Achromobacter_xylosoxidans_SOLR10/genes.txt
+```
+
+**What it does:**
+- Takes pre-extracted embeddings from Step 0
+- Applies original DeepFRI final layers (unfinetuned)
+- Produces baseline GO-term predictions
+- Useful for comparison with transfer learning approach
+
+---
+
+### Step 5 — (Optional) Run DeepFRI with Transfer Learning
+
+Fine-tune DeepFRI's final layers on your labeled data.
+
+```bash
+python3 deepfri_masked.py \
+  --split 0 \
+  --outdir ../output/predictions_transfer_learning/ \
+  --protein_path ../output/Achromobacter_xylosoxidans_SOLR10.pkl \
+  --matrix_label_path ../input/labels/label_matrix_Achromobacter_xylosoxidans_SOLR10_thr10_new.csv \
+  --split_dir ../input/splits/Achromobacter_xylosoxidans_SOLR10/ \
+  --species Achromobacter_xylosoxidans_SOLR10 \
+  --conversion_dict ../input/splits/Achromobacter_xylosoxidans_SOLR10/genes.txt \
+  --transfer_learning  # Enable fine-tuning but not supported for some versions
+```
+
+**Transfer Learning Process:**
+1. Initialize final layers with original DeepFRI weights
+2. Fine-tune on training set using `trainer.fit(model, datamodule=data)`
+3. Monitor validation set with early stopping
+4. Evaluate on held-out test set
+
+**Output:**
+```
+../output/predictions_transfer_learning/
+├── deepfri_predictions_fold0_split0.csv
+├── training_metrics_fold0_split0.txt
+└── ...
+```
+
+> **Decoupled Strategy Note:** We extract embeddings first (Step 0), then predict (Steps 3-4) for computational efficiency. You can couple these steps if needed, with some code refactoring.
+
+---
+
+### Step 6 — Train DeepEST (Main Model)
+
+Combine structure embeddings and genomic features to predict GO terms.
+
+#### Training Command
+
+```bash
+python3 train_DeepEST.py \
+  --split 0 \
+  --splitdir ../input/splits/Achromobacter_xylosoxidans_SOLR10/ \
+  --config ../config_species/fold0/config.yaml \
+  --expr-loc ../features/expr_loc_Achromobacter_xylosoxidans_SOLR10.csv \
+  --structures ../output/Achromobacter_xylosoxidans_SOLR10.pkl \
+  --label ../input/labels/label_matrix_Achromobacter_xylosoxidans_SOLR10_thr10_new.csv \
+  --conversion_dict ../input/splits/Achromobacter_xylosoxidans_SOLR10/genes.txt \
+  --outdir ../output/deepest_predictions/ \
+  --species Achromobacter_xylosoxidans_SOLR10
+```
+
+#### Required Files
+- ✓ Structure embeddings (from Step 0)
+- ✓ Genomic features (from Step 2)
+- ✓ GO label matrix
+- ✓ Train/val/test split indices
+- ✓ Conversion dictionary (protein ID → gene ID mapping)
+- ✓ Config file (from `config_species.zip`)
+
+#### Expected Output
+
+```
+../output/deepest_predictions/
+├── deepest_predictions_fold0_split0.csv      # Main predictions
+├── deepest_predictions_fold0_split1.csv      # [if multiple splits]
+├── training_log_fold0_split0.txt
+├── validation_metrics_fold0_split0.csv
+└── config_fold0_split0.yaml                  # Used configuration
+```
+
+#### Model Architecture
+
+The configuration file controls:
+```yaml
+model_params:
+  input_dim: 449                    # Total feature dimension
+  hidden_sizes: [512, 16, 512]     # Hidden layer sizes
+  lr: 0.0001                        # Learning rate
+  p: 0.0                            # Dropout rate
+  weight_decay: 0.0                 # L2 regularization
+
+data_params:
+  batch_size: 32
+
+training_params:
+  epochs: 100
+  early_stopping_patience: 10
+```
+
+---
+
+### Step 7 — Structure-Aware Evaluation (Foldseek-Based Splits)
+
+Use structure similarity to create realistic train/test splits, preventing data leakage from structurally similar proteins.
+
+#### Why Use Foldseek Splits?
+
+Standard random splits may include structurally very similar proteins in both training and test sets, leading to **overly optimistic performance estimates**. Foldseek-based splits account for this.
+
+#### Workflow
+
+**1. Prepare PDB Files (Consolidate All Structures)**
+
+```bash
+cd scripts_str_and_clus/
+
+python3 1_prepare_pdb_folder.py \
+  --input ../data/processed_files/structure/species_folders/ \
+  --output ../data/processed_files/structure/all_species/
+```
+
+**2. Create Foldseek Database**
+
+```bash
+bash 2_create_foldseekDB.sh
+```
+
+**3. Run Foldseek Clustering**
+
+```bash
+bash 3_run_foldseek.sh
+# Uses: lddt-threshold 0.7 (structures > 70% similar are clustered)
+```
+
+**Output:**
+```
+../data/processed_files/clustering_foldseek/
+├── cluster_all_species_cluster.tsv         # Cluster assignments
+└── ...
+```
+
+**4. Generate Structure-Aware Splits**
+
+```bash
+python3 4_check_clustering.py \
+  --genes ../data/processed_files/splits/all_species/ \
+  --clusters ../data/processed_files/clustering_foldseek/ \
+  --outdir ../data/processed_files/splits_foldseek/ \
+  --species all_species \
+  --folds 5
+```
+
+**Output:**
+```
+../data/processed_files/splits_foldseek/all_species/
+├── train_index_0.npy
+├── val_index_0.npy
+├── test_index_0.npy
+└── [indices 1-4]
+```
+
+#### Use Foldseek Splits in Training
+
+```bash
+python3 train_DeepEST.py \
+  --split 0 \
+  --splitdir ../data/processed_files/splits_foldseek/all_species/ \
+  --config ../config_species/foldseek/foldseek_fold0/config.yaml \
+  --expr-loc ../features/expr_loc.csv \
+  --structures ../output/all_proteins.pkl \
+  --label ../input/labels/label_matrix.csv \
+  --conversion_dict ../data/processed_files/splits_foldseek/all_species/genes.txt \
+  --outdir ../output/foldseek_predictions/ \
+  --species all_species
+```
+
+#### Available Foldseek Configs
+
+Pre-computed optimal hyperparameters are in:
+```
+config_species/foldseek/
+├── foldseek_fold0/config.yaml
+├── foldseek_fold1/config.yaml
+└── ...
+```
+
+These configs use structure-aware hyperparameters optimized via grid search.
+
+---
+
+## Complete End-to-End Pipeline (Bash Script example)
+
+```bash
+#!/bin/bash
+# Run full DeepEST workflow from PDB to predictions, example including some steps, notice step number does not necessarily match the tutorial numbers
+
+set -e  # Exit on error
+
+echo " Starting DeepEST end-to-end workflow..."
+
+SPECIES="Achromobacter_xylosoxidans_SOLR10"
+INPUT_STRUCTURES="../input/structures/$SPECIES/"
+INPUT_LABELS="../input/labels/"
+INPUT_SPLITS="../input/splits/$SPECIES/"
+INPUT_GENOME="../input/genome/"
+OUTPUT_DIR="../output/"
+FEATURES_DIR="../features/"
+
+# Create output directories
+mkdir -p $OUTPUT_DIR $FEATURES_DIR
+
+# ============================================================================
+# STEP 1: Extract DeepFRI-GCN embeddings
+# ============================================================================
+echo "Step 1: Extracting structure embeddings..."
+cd gene_function/1st_step/
+
+python3 deepfri_extract_features.py \
+  --data $INPUT_STRUCTURES \
+  --out_dir $OUTPUT_DIR
+
+cd ../..
+
+# ============================================================================
+# STEP 2: Generate genomic features
+# ============================================================================
+echo "Step 2: Generating genomic features..."
+
+python3 scripts/6_position_encoding.py \
+  --inraw ../data/raw_gene_annotations/ \
+  --inexp $FEATURES_DIR
+
+# ============================================================================
+# STEP 3: (Optional) Run DeepFRI baseline
+# ============================================================================
+echo "Step 3: Running DeepFRI baseline predictions (optional)..."
+
+cd gene_function/1st_step/
+
+python3 deepfri_masked.py \
+  --split 0 \
+  --outdir ${OUTPUT_DIR}deepfri_baseline/ \
+  --protein_path ${OUTPUT_DIR}${SPECIES}.pkl \
+  --matrix_label_path ${INPUT_LABELS}label_matrix_${SPECIES}_thr10_new.csv \
+  --split_dir $INPUT_SPLITS \
+  --species $SPECIES \
+  --conversion_dict ${INPUT_SPLITS}genes.txt
+
+cd ../..
+
+# ============================================================================
+# STEP 4: Train DeepEST
+# ============================================================================
+echo "Step 4: Training DeepEST model..."
+
+python3 train_DeepEST.py \
+  --split 0 \
+  --splitdir $INPUT_SPLITS \
+  --config ../config_species/fold0/config.yaml \
+  --expr-loc ${FEATURES_DIR}expr_loc_${SPECIES}.csv \
+  --structures ${OUTPUT_DIR}${SPECIES}.pkl \
+  --label ${INPUT_LABELS}label_matrix_${SPECIES}_thr10_new.csv \
+  --conversion_dict ${INPUT_SPLITS}genes.txt \
+  --outdir ${OUTPUT_DIR}deepest_predictions/ \
+  --species $SPECIES
+
+# ============================================================================
+# STEP 5: (Optional) Train with foldseek-based splits
+# ============================================================================
+echo "Step 5: Training with structure-aware splits (optional)..."
+
+python3 train_DeepEST.py \
+  --split 0 \
+  --splitdir ../data/processed_files/splits_foldseek/all_species/ \
+  --config ../config_species/foldseek/foldseek_fold0/config.yaml \
+  --expr-loc ${FEATURES_DIR}expr_loc_${SPECIES}.csv \
+  --structures ${OUTPUT_DIR}all_proteins.pkl \
+  --label ${INPUT_LABELS}label_matrix_all_species_thr10.csv \
+  --conversion_dict ../data/processed_files/splits_foldseek/all_species/genes.txt \
+  --outdir ${OUTPUT_DIR}foldseek_predictions/ \
+  --species $SPECIES
+
+echo " DeepEST workflow completed successfully!"
+echo ""
+echo "Results:"
+echo "  - DeepEST predictions: ${OUTPUT_DIR}deepest_predictions/"
+echo "  - Foldseek predictions: ${OUTPUT_DIR}foldseek_predictions/"
+echo "  - DeepFRI baseline: ${OUTPUT_DIR}deepfri_baseline/"
+```
+
+---
+
+## Understanding the Pipeline Architecture
+
+### Data Flow Diagram
+
+```
+┌─────────────────┐
+│   PDB Files     │
+└────────┬────────┘
+         │
+         ▼
+┌──────────────────────────────┐
+│ Step 1: DeepFRI-GCN Extract  │
+│ (deepfri_extract_features.py)│
+└────────┬─────────────────────┘
+         │
+         ▼
+┌──────────────────────────────┐
+│   Structure Embeddings       │
+│   (*.pkl files)              │
+└────────┬─────────────────────┘
+         │
+         ├─────────────────┬────────────────────┐
+         │                 │                    │
+         ▼                 ▼                    ▼
+    ┌─────────┐      ┌──────────┐       ┌────────────┐
+    │ DeepFRI │      │ Merge    │       │ DeepEST    │
+    │ Baseline│      │ Species  │       │ (Combine   │
+    │         │      │ Embeddings       │  Features) │
+    └────┬────┘      └────┬────┘       └─────┬──────┘
+         │                │                   │
+         ▼                ▼                   ▼
+┌──────────────────────────────────────────────────────┐
+│             Genomic Features                         │
+│  (6_position_encoding.py)                            │
+│  - Expression data                                   │
+│  - Polar position encoding (cos/sin start/end)       │
+│  - Strand & genome information                       │
+└──────────────────────┬───────────────────────────────┘
+                       │
+                       ▼
+         ┌─────────────────────────┐
+         │   GO Label Matrix       │
+         │   (protein × GO terms)  │
+         └────────┬────────────────┘
+                  │
+                  ▼
+         ┌─────────────────────────┐
+         │  Train/Val/Test Splits  │
+         │                         │
+         │  Standard: random split │
+         │  Foldseek: structure-   │
+         │           aware split   │
+         └────────┬────────────────┘
+                  │
+                  ▼
+    ┌─────────────────────────────────────┐
+    │  Train DeepEST / DeepFRI (Transfer) │
+    │  - Early stopping on validation set │
+    │  - Fine-tune final layers           │
+    └────────────────────────────────────
+```
+
+### Key Differences: Standard vs. Foldseek Splits
+
+| Aspect | Standard Splits | Foldseek Splits |
+|--------|-----------------|-----------------|
+| **Strategy** | Random stratified split | Structure-similarity aware clustering |
+| **Prevents Leakage** | By GO term distribution | By structural similarity |
+| **Realistic?** | May be optimistic | Realistic (accounts for homologs) |
+| **Use Case** | Quick prototyping | Publication-quality evaluation |
+| **Configuration** | `fold*/config.yaml` | `foldseek/foldseek_fold*/config.yaml` |
+
+---
+
+## Overfitting Prevention & Evaluation
+
+### Standard Evaluation Protocol
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Split into Train / Validation / Test                         │
+├─────────────────────────────────────────────────────────────┤
+│                                                               │
+│  Training Set                 Validation Set    Test Set    │
+│  (learn weights)              (tune hyperparams) (final eval)│
+│  • Backprop enabled           • No backprop      • No backprop
+│  • Update weights             • Early stop       • Report metrics
+│  • Use training loss          • Use val loss     • Final scores
+│                               (stop if no       │
+│                                improvement)     │
+│                                                  └─ Report only!
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Strategies If Overfitting Occurs
+
+| Strategy | Description | When to Use |
+|----------|-------------|-------------|
+| **Stronger regularization** | Increase dropout rate, weight decay, L2 penalty | Small datasets (<500 proteins) |
+| **More training data** | Data augmentation, add unlabeled proteins | Limited labeled annotations |
+| **Revisit split strategy** | Switch to foldseek-based splits | Overlapping/homologous proteins |
+| **Early stopping** | Increase patience, monitor validation loss | Standard approach (always use) |
+| **Model architecture** | Reduce hidden layer sizes | Overfitting on small datasets |
+| **Feature selection** | Use top features by importance | High-dimensional feature spaces |
+
+### Monitoring Training
+
+**Metrics to Track:**
+
+```python
+# In config file or logs:
+- Training loss (should decrease)
+- Validation loss (should decrease, then plateau)
+- Test loss (final evaluation only)
+
+# Early stopping criteria:
+- If val_loss doesn't improve for N epochs → stop
+- Restore best model from validation phase
+```
+
+---
+
+## Troubleshooting
+
+### Common Issues
+
+| Issue | Symptom | Solution |
+|-------|---------|----------|
+| **Embedding file not found** | `FileNotFoundError: *.pkl` | Check Step 0 completed; verify paths in config |
+| **Label matrix dimension mismatch** | `Shape mismatch: features vs labels` | Verify protein IDs match in all files; check filtering steps |
+| **Memory errors during training** | `CUDA out of memory` or `RAM exceeded` | Reduce `batch_size` in config (e.g., 32→16); use gradient accumulation |
+| **Poor prediction performance** | AUROC < 0.6 | Review data quality; check for data leakage; try foldseek splits |
+| **NaN values in loss** | `Loss is NaN` | Check for invalid entries in features/labels; normalize features |
+| **Protein ID mismatches** | Keys missing across files | Run `9_print_dimensions.py` to verify; use `4_reference_split_generation.py` |
+| **Foldseek not found** | `Command not found: foldseek` | Add to PATH: `export PATH=$(pwd)/foldseek/bin/:$PATH` |
+
+### Validation Checklist
+
+Before training, verify:
+
+- [ ] All `.pdb` files are readable and in correct directory
+- [ ] GO label matrix shape: `(num_proteins, num_GO_terms)`
+- [ ] Protein IDs match across: features, labels, splits, conversion dict
+- [ ] No NaN values in feature matrices
+- [ ] Train/val/test indices don't overlap
+- [ ] Config file `input_dim` matches feature matrix columns
+- [ ] Config file output dimension matches GO term count
+- [ ] Conversion dictionary has entries for all proteins
+
+---
+
+## Scripts Reference
+
+### Preprocessing Scripts (from `scripts.zip`)
+
+Use these in sequence to prepare data from raw files:
+
+```bash
+# 1. Filter genes by expression availability
+python3 1_genes_with_expression.py
+
+# 2. Create GO label matrix (per species)
+python3 2_label_matrix.py
+
+# 3. Combine multi-species label matrices
+python3 3_label_matrix_all_species.py
+
+# 4. Create initial train/val/test splits
+python3 4_reference_split_generation.py
+
+# 5. Generate multi-species splits (stratified)
+python3 5_split_generation_all_species.py
+
+# 6. Generate genomic features ⭐ CRITICAL
+python3 6_position_encoding.py
+
+# 7. Combine all species feature matrices
+python3 7_create_X_all_species.py
+
+# 8. Clean expression data (remove NaNs)
+python3 8_create_expression_wo_IDs.py
+python3 8_create_expression_wo_IDs_all_species.py
+
+# 9. Print and verify dataset dimensions
+python3 9_print_dimensions.py --X <features.csv> --label <labels.csv>
+
+# 10. Generate config files per fold/split
+python3 10_update_yaml.py
+python3 10_update_yaml_combined.py  # For multi-task models
+```
+
+### Structure-Based Clustering Scripts (from `scripts_str_and_clus.zip`)
+
+Use for foldseek-based evaluation splits:
+
+```bash
+# 1. Consolidate all PDB files into single directory
+python3 1_prepare_pdb_folder.py
+
+# 2. Create Foldseek database
+bash 2_create_foldseekDB.sh
+
+# 3. Run structure-based clustering
+bash 3_run_foldseek.sh
+
+# 4. Generate splits from clusters
+python3 4_check_clustering.py --species all_species
+```
+
+---
+
+## Advanced Topics
+
+### Multi-Species Training
+
+For training on multiple bacterial species simultaneously:
+
+```bash
+python3 train_DeepEST.py \
+  --split 0 \
+  --splitdir ../data/processed_files/splits/all_species/ \
+  --config ../config_species/fold0/config.yaml \
+  --expr-loc ../features/expr_loc_all_species.csv \
+  --structures ../output/all_proteins.pkl \
+  --label ../input/labels/label_matrix_all_species_thr10.csv \
+  --conversion_dict ../data/processed_files/splits/all_species/genes.txt \
+  --outdir ../output/multi_species_predictions/ \
+  --species all_species
+```
+
+### Transfer Learning from DeepFRI
+
+The pipeline supports initializing from DeepFRI weights:
+
+```python
+# Original DeepFRI weights are loaded from:
+# data/deepfri_model.hdf5
+
+# Fine-tuning occurs in:
+trainer.fit(model, datamodule=data)
+
+# Results in improved performance on your specific labels
+```
+
+### Using Pre-Extracted Embeddings
+
+If you already have DeepFRI embeddings from another source:
+
+```bash
+# Place *.pkl files in output directory
+# Then skip Step 0 and proceed to Step 2 (Generate Genomic Features)
+python3 train_DeepEST.py --structures <your_embeddings.pkl> ...
+```
+
+---
+
+## References Foldseek
+
+- **Foldseek**: van Kempen, M., et al. Fast and accurate protein structure search with Foldseek. *Nature Biotechnology* (2023).
+  - Paper: https://doi.org/10.1038/s41587-023-01773-0
+  - Code: https://github.com/steineggerlab/foldseek
+
+
+---
+
+## Citation
+
+If you use DeepEST in your research, please cite:
+
+```bibtex
+@article{muzio2024bacterial,
+  title={Bacterial protein function prediction via multimodal deep learning},
+  author={Muzio, Giulia and Adamer, Michael and Fernandez, Leyden and Borgwardt, Karsten and Avican, Kemal},
+  journal={bioRxiv},
+  pages={2024--10},
+  year={2024},
+  publisher={Cold Spring Harbor Laboratory}
+}
+```
+
+---
+
+## Support & Issues
+
+For questions or issues:
+1. Check the [Troubleshooting](#troubleshooting) section
+2. Review preprocessing script documentation
+3. Verify dataset dimensions with `9_print_dimensions.py`
+4. Open an issue on GitHub with:
+   - Dataset dimensions (proteins × features, proteins × GO terms)
+   - Error message (full traceback)
+   - Steps to reproduce
+
+---
+
+
+
 
 ## References
 [1] Gligorijevi ́c, V., et al.: Structure-based protein function prediction using graph convolutional networks. Nat. Commun. 12, 3168 (2021)
