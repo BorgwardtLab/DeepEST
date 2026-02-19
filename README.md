@@ -57,10 +57,10 @@ In the following, we describe how to collect the data (gene expression and locat
   GO annotations are retrieved from the [UniProt database](https://www.uniprot.org/) [4] (accessed on July 12, 2023) using the RefSeq protein identifier of every known protein and the taxonomic reference code of a given pathogen's strain. 
 To retrieve a particular GO term's children or ancestors we use the [GO ontology](https://geneontology.org/docs/download-ontology/) released on October 7, 2022.
 
-# DeepEST End-to-End Tutorial
-**PDB → Structure Embeddings → Genomic Features → GO-Term Prediction**
+# DeepEST end-to-end tutorial
+**PDB → Structure Embeddings → Genomic and Transcriptomic Features → GO-Term Prediction**
 
-This comprehensive tutorial describes how to run **DeepEST** end-to-end on **user-defined data**, starting from **protein structures (PDB files)** and producing **GO-term predictions**. It also documents how to leverage **DeepFRI** and **foldseek-based structure similarity** for robust model training and evaluation.
+This tutorial describes how to run **DeepEST** end-to-end on **user-defined data**, starting from **protein structures (PDB files)** and producing **GO-term predictions**. It also documents how to leverage **DeepFRI** and **foldseek-based structure similarity** for robust model training and evaluation.
 
 ## Table of Contents
 - [Overview](#overview)
@@ -70,7 +70,7 @@ This comprehensive tutorial describes how to run **DeepEST** end-to-end on **use
 - [Installation & Setup](#installation--setup)
 - [Complete Workflow](#complete-workflow)
 - [Troubleshooting](#troubleshooting)
-- [References Foldseek](#references)
+
 
 ---
 
@@ -86,25 +86,25 @@ The pipeline supports multiple evaluation strategies:
 - Standard random splits
 - **Foldseek-based structure-aware splits** (recommended for realistic evaluation)
 
-> **Note:** Big data files such as structures, splits, bed files, etc; used to train DeepEST, are available on Zenodo.
+> **Note:** Big data files such as structures, BED files, etc, used to train DeepEST, are available on Zenodo.
 
 ---
 
 ## Key Components
 
-### 1. Structure Embeddings (DeepFRI-GCN)
+### 1. Structure embeddings (DeepFRI-GCN)
 - Extracted from PDB files using pre-trained DeepFRI's Graph Convolutional Network layers
 - Produces vectorial feature representations of proteins
 - Intermediate representations (not final DeepFRI predictions)
 
-### 2. Genomic/Expression-Location Features
+### 2. Genomic/Expression-Location features
 - **Polar position encoding**: Encodes gene/protein position relative to transcription start
 - **Expression data**: Log fold changes under various stress conditions
 - **Critical functions**:
   - `get_info()`: Extracts genomic information from BED files
   - `polar()`: Computes polar position encoding (essential for DeepEST)
 
-### 3. Transfer Learning Strategy
+### 3. Transfer learning strategy
 - Uses original DeepFRI weights as initialization
 - Fine-tunes final layers on your labeled dataset
 - Decoupled strategy (extract → predict) for computational efficiency
@@ -120,17 +120,17 @@ For each species/strain (example: `Achromobacter_xylosoxidans_SOLR10`), prepare:
 | **PDB structures** | Protein 3D structures | `.pdb` files | ✓ |
 | **GO label matrix** | Protein × GO term annotations | `.csv` | ✓ |
 | **Splits directory** | Train/validation/test folds | `train/`, `val/`, `test/` folders | ✓ |
-| **Conversion dictionary** | Gene/protein ID mapping | `genes.txt` | ✓ |
+| **Conversion dictionary** | Gene (locus tag)/protein ID mapping | `genes.txt` | ✓ |
 | **Genomic features** | Expression/location information | `.csv` | ✓ |
-| **Protein ID mapping** | Links genes to protein structures | Column in features file | ✓ |
+| **Protein ID mapping** | Links genes (locus tag) to protein structures | Column in features file | ✓ |
 
 ---
 
 ## Recommended Resources
 
-These archives contain pre-generated configurations and data:
+These archives contain pre-generated configurations and data (data can be found in Zenodo):
 
-### Available Downloads
+### Available downloads
 
 ```
 config_species.zip (see example S. aureus)
@@ -153,7 +153,7 @@ scripts.zip
 ├── 4_reference_split_generation.py   # Create train/val/test splits
 ├── 5_split_generation_all_species.py # Multi-species split generation
 ├── 7_create_X_all_species.py         # Create combined feature matrix
-├── 8_create_expression_wo_IDs.py     # Clean expression data
+├── 8_create_expression_wo_IDs.py     # Clean expression data (i.e., by removing protein IDs)
 ├── 9_print_dimensions.py             # Verify dataset dimensions
 ├── 10_update_yaml.py                 # Generate config files per fold/split
 └── 10_update_yaml_combined.py        # Config generation for combined models
@@ -191,7 +191,7 @@ pip install pandas numpy scikit-learn pytorch-lightning pyyaml
 export PATH=$(pwd)/foldseek/bin/:$PATH
 ```
 
-### Directory Structure
+### Directory structure
 ```
 project_root/
 ├── gene_function/
@@ -225,11 +225,11 @@ project_root/
 
 ## Complete Workflow
 
-### Step 1 — Extract Structure Embeddings (DeepFRI-GCN)
+### Step 1 — Extract structure embeddings (DeepFRI-GCN)
 
 This step applies DeepFRI's pre-trained GCN layers to your PDB files.
 
-#### Run Extraction
+#### Run extraction
 
 ```bash
 cd gene_function/1st_step/
@@ -258,7 +258,7 @@ python3 deepfri_extract_features.py \
 
 ---
 
-### Step 2 — (Optional) Merge Multiple Species Embeddings
+### Step 2 — (Optional) Merge multiple species embeddings
 
 Only required if extracting for multiple species and you want a unified file.
 
@@ -276,9 +276,9 @@ python3 merge_extracted_structures.py \
 
 ---
 
-### Step 3 — Generate Genomic Features
+### Step 3 — Generate genomic features
 
-Genomic features encode gene position, expression levels, and genomic context.
+Genomic features encode gene position and genomic context; these features are combined with expression data and used as the input for the expression-location module.
 
 #### Core Script: `6_position_encoding.py`
 
@@ -325,7 +325,7 @@ def polar(protein_id, gene_info, genome_size):
     pass
 ```
 
-#### Using Pre-Generated Features
+#### Using pre-generated features
 
 If using `genomic_features.zip`:
 
@@ -338,7 +338,7 @@ unzip genomic_features.zip
 # - metadata.json (ID mapping)
 ```
 
-#### Run Feature Generation
+#### Run feature generation
 
 ```bash
 python3 6_position_encoding.py \
@@ -361,9 +361,9 @@ python3 6_position_encoding.py \
 
 ---
 
-### Step 4 — (Optional) Run DeepFRI Baseline Predictions
+### Step 4, 5 —  Run DeepFRI baseline predictions (Optional)
 
-Map extracted embeddings through DeepFRI's final layers WITHOUT transfer learning.
+Map extracted embeddings through DeepFRI's final layers WITHOUT and WITH transfer learning.
 
 ```bash
 python3 deepfri_masked.py \
@@ -376,33 +376,10 @@ python3 deepfri_masked.py \
   --conversion_dict ../input/splits/Achromobacter_xylosoxidans_SOLR10/genes.txt
 ```
 
-**What it does:**
-- Takes pre-extracted embeddings from Step 0
-- Applies original DeepFRI final layers (unfinetuned)
-- Produces baseline GO-term predictions
-- Useful for comparison with transfer learning approach
-
----
-
-### Step 5 — (Optional) Run DeepFRI with Transfer Learning
-
-Fine-tune DeepFRI's final layers on your labeled data.
-
-```bash
-python3 deepfri_masked.py \
-  --split 0 \
-  --outdir ../output/predictions_transfer_learning/ \
-  --protein_path ../output/Achromobacter_xylosoxidans_SOLR10.pkl \
-  --matrix_label_path ../input/labels/label_matrix_Achromobacter_xylosoxidans_SOLR10_thr10_new.csv \
-  --split_dir ../input/splits/Achromobacter_xylosoxidans_SOLR10/ \
-  --species Achromobacter_xylosoxidans_SOLR10 \
-  --conversion_dict ../input/splits/Achromobacter_xylosoxidans_SOLR10/genes.txt \
-  --transfer_learning  # Enable fine-tuning but not supported for some versions
-```
 
 **Transfer Learning Process:**
 1. Initialize final layers with original DeepFRI weights
-2. Fine-tune on training set using `trainer.fit(model, datamodule=data)`
+2. Fine-tune on training. **Important** We get the results without transfer learning. Afterward, we get the results of DeepFRI with transfer learning. 
 3. Monitor validation set with early stopping
 4. Evaluate on held-out test set
 
@@ -414,15 +391,15 @@ python3 deepfri_masked.py \
 └── ...
 ```
 
-> **Decoupled Strategy Note:** We extract embeddings first (Step 0), then predict (Steps 3-4) for computational efficiency. You can couple these steps if needed, with some code refactoring.
+> **Decoupled strategy note:** We extract embeddings first (Step 1), then predict for computational efficiency. You can couple these steps, if needed, with some code refactoring.
 
 ---
 
-### Step 6 — Train DeepEST (Main Model)
+### Step 6 — Train DeepEST (main model)
 
-Combine structure embeddings and genomic features to predict GO terms.
+Combine structure embeddings and transcriptomic/genomic features to predict GO terms.
 
-#### Training Command
+#### Training command
 
 ```bash
 python3 train_DeepEST.py \
@@ -437,15 +414,15 @@ python3 train_DeepEST.py \
   --species Achromobacter_xylosoxidans_SOLR10
 ```
 
-#### Required Files
-- ✓ Structure embeddings (from Step 0)
-- ✓ Genomic features (from Step 2)
+#### Required files
+- ✓ Structure embeddings (from Step 1)
+- ✓ Genomic features (from Step 3)
 - ✓ GO label matrix
 - ✓ Train/val/test split indices
 - ✓ Conversion dictionary (protein ID → gene ID mapping)
-- ✓ Config file (from `config_species.zip`)
+- ✓ Config file (from `config_species.zip`, see example for S. aureus)
 
-#### Expected Output
+#### Expected output
 
 ```
 ../output/deepest_predictions/
@@ -456,7 +433,7 @@ python3 train_DeepEST.py \
 └── config_fold0_split0.yaml                  # Used configuration
 ```
 
-#### Model Architecture
+#### Model architecture
 
 The configuration file controls:
 ```yaml
@@ -477,17 +454,17 @@ training_params:
 
 ---
 
-### Step 7 — Structure-Aware Evaluation (Foldseek-Based Splits)
+### Step 7 — Structure-aware evaluation (Foldseek-based splits)
 
 Use structure similarity to create realistic train/test splits, preventing data leakage from structurally similar proteins.
 
-#### Why Use Foldseek Splits?
+#### Why use foldseek splits?
 
 Standard random splits may include structurally very similar proteins in both training and test sets, leading to **overly optimistic performance estimates**. Foldseek-based splits account for this.
 
 #### Workflow
 
-**1. Prepare PDB Files (Consolidate All Structures)**
+**1. Prepare PDB files (consolidate all structures)**
 
 ```bash
 cd scripts_str_and_clus/
@@ -497,13 +474,13 @@ python3 1_prepare_pdb_folder.py \
   --output ../data/processed_files/structure/all_species/
 ```
 
-**2. Create Foldseek Database**
+**2. Create Foldseek database**
 
 ```bash
 bash 2_create_foldseekDB.sh
 ```
 
-**3. Run Foldseek Clustering**
+**3. Run Foldseek clustering**
 
 ```bash
 bash 3_run_foldseek.sh
@@ -517,7 +494,7 @@ bash 3_run_foldseek.sh
 └── ...
 ```
 
-**4. Generate Structure-Aware Splits**
+**4. Generate structure-aware splits**
 
 ```bash
 python3 4_check_clustering.py \
@@ -537,7 +514,7 @@ python3 4_check_clustering.py \
 └── [indices 1-4]
 ```
 
-#### Use Foldseek Splits in Training
+#### Use Foldseek splits in training
 
 ```bash
 python3 train_DeepEST.py \
@@ -552,7 +529,7 @@ python3 train_DeepEST.py \
   --species all_species
 ```
 
-#### Available Foldseek Configs
+#### Available Foldseek configs
 
 Pre-computed optimal hyperparameters are in:
 ```
@@ -566,7 +543,7 @@ These configs use structure-aware hyperparameters optimized via grid search.
 
 ---
 
-## Complete End-to-End Pipeline (Bash Script example)
+## Complete end-to-end pipeline (Bash Script example)
 
 ```bash
 #!/bin/bash
@@ -668,9 +645,8 @@ echo "  - DeepFRI baseline: ${OUTPUT_DIR}deepfri_baseline/"
 
 ---
 
-## Understanding the Pipeline Architecture
+## Understanding the pipeline architecture
 
-### Data Flow Diagram
 
 ```
 ┌─────────────────┐
@@ -744,25 +720,25 @@ echo "  - DeepFRI baseline: ${OUTPUT_DIR}deepfri_baseline/"
 
 ## Overfitting Prevention & Evaluation
 
-### Standard Evaluation Protocol
+### Standard evaluation protocol
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ Split into Train / Validation / Test                         │
-├─────────────────────────────────────────────────────────────┤
-│                                                               │
-│  Training Set                 Validation Set    Test Set    │
-│  (learn weights)              (tune hyperparams) (final eval)│
-│  • Backprop enabled           • No backprop      • No backprop
-│  • Update weights             • Early stop       • Report metrics
-│  • Use training loss          • Use val loss     • Final scores
-│                               (stop if no       │
-│                                improvement)     │
-│                                                  └─ Report only!
-└─────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────┐
+│         Split into Train / Validation / Test                      │
+├───────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  Training Set                 Validation Set       Test Set       │
+│  (learn weights)              (tune hyperparams) (final eval)     │
+│  • Backprop enabled           • No backprop      • No backprop    │
+│  • Update weights             • Early stop       • Report metrics │
+│  • Use training loss          • Use val loss     • Final scores   │
+│                               (stop if no       │                 │
+│                                improvement)     │                 │
+│                                                 └─ Report only!   │
+└───────────────────────────────────────────────────────────────────┘
 ```
 
-### Strategies If Overfitting Occurs
+### Strategies if overfitting occurs
 
 | Strategy | Description | When to Use |
 |----------|-------------|-------------|
@@ -773,7 +749,7 @@ echo "  - DeepFRI baseline: ${OUTPUT_DIR}deepfri_baseline/"
 | **Model architecture** | Reduce hidden layer sizes | Overfitting on small datasets |
 | **Feature selection** | Use top features by importance | High-dimensional feature spaces |
 
-### Monitoring Training
+### Monitoring training
 
 **Metrics to Track:**
 
@@ -792,11 +768,11 @@ echo "  - DeepFRI baseline: ${OUTPUT_DIR}deepfri_baseline/"
 
 ## Troubleshooting
 
-### Common Issues
+### Common issues
 
 | Issue | Symptom | Solution |
 |-------|---------|----------|
-| **Embedding file not found** | `FileNotFoundError: *.pkl` | Check Step 0 completed; verify paths in config |
+| **Embedding file not found** | `FileNotFoundError: *.pkl` | Check Step 1 completed; verify paths in config |
 | **Label matrix dimension mismatch** | `Shape mismatch: features vs labels` | Verify protein IDs match in all files; check filtering steps |
 | **Memory errors during training** | `CUDA out of memory` or `RAM exceeded` | Reduce `batch_size` in config (e.g., 32→16); use gradient accumulation |
 | **Poor prediction performance** | AUROC < 0.6 | Review data quality; check for data leakage; try foldseek splits |
@@ -804,7 +780,7 @@ echo "  - DeepFRI baseline: ${OUTPUT_DIR}deepfri_baseline/"
 | **Protein ID mismatches** | Keys missing across files | Run `9_print_dimensions.py` to verify; use `4_reference_split_generation.py` |
 | **Foldseek not found** | `Command not found: foldseek` | Add to PATH: `export PATH=$(pwd)/foldseek/bin/:$PATH` |
 
-### Validation Checklist
+### Validation checklist
 
 Before training, verify:
 
@@ -819,9 +795,9 @@ Before training, verify:
 
 ---
 
-## Scripts Reference
+## Scripts reference
 
-### Preprocessing Scripts (from `scripts.zip`)
+### Preprocessing scripts (from `scripts.zip`)
 
 Use these in sequence to prepare data from raw files:
 
@@ -859,7 +835,7 @@ python3 10_update_yaml.py
 python3 10_update_yaml_combined.py  # For multi-task models
 ```
 
-### Structure-Based Clustering Scripts (from `scripts_str_and_clus.zip`)
+### Structure-Based clustering scripts (from `scripts_str_and_clus.zip`)
 
 Use for foldseek-based evaluation splits:
 
@@ -881,7 +857,7 @@ python3 4_check_clustering.py --species all_species
 
 ## Advanced Topics
 
-### Multi-Species Training
+### Multi-species training
 
 For training on multiple bacterial species simultaneously:
 
@@ -898,7 +874,7 @@ python3 train_DeepEST.py \
   --species all_species
 ```
 
-### Transfer Learning from DeepFRI
+### Transfer learning from DeepFRI
 
 The pipeline supports initializing from DeepFRI weights:
 
@@ -912,13 +888,13 @@ trainer.fit(model, datamodule=data)
 # Results in improved performance on your specific labels
 ```
 
-### Using Pre-Extracted Embeddings
+### Using pre-extracted embeddings
 
 If you already have DeepFRI embeddings from another source:
 
 ```bash
 # Place *.pkl files in output directory
-# Then skip Step 0 and proceed to Step 2 (Generate Genomic Features)
+# Then skip Step 1 and proceed to Step 3 (Generate Genomic Features)
 python3 train_DeepEST.py --structures <your_embeddings.pkl> ...
 ```
 
